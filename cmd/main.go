@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	p "golang_webapp/domains/models/produtos"
 	"html/template"
 	"net/http"
@@ -22,8 +21,6 @@ func dbConnect() *sql.DB { //Função de criaçao de conexão com o postgres
 var temp = template.Must(template.ParseGlob("templates/*.html"))
 
 func main() {
-	db := dbConnect()                 //Tenta conectar ao db
-	defer db.Close()                  //Fecha conexão
 	http.HandleFunc("/", index)       //Define rota para a função index
 	http.ListenAndServe(":8000", nil) //Disponibiliza escuta na porta 8000
 
@@ -31,13 +28,40 @@ func main() {
 
 func index(w http.ResponseWriter, r *http.Request) {
 
-	produtos := []p.Produto{
-		{Nome: "Camiseta", Descricao: "Azul, bem bonita", Preco: 39, Quantidade: 5},
-		{Nome: "Tenis", Descricao: "Confortável", Preco: 89, Quantidade: 3},
-		{Nome: "Fone", Descricao: "Muito bom", Preco: 59, Quantidade: 2},
-		{Nome: "Produto novo", Descricao: "Muito Legal", Preco: 1.99, Quantidade: 1},
+	db := dbConnect() //Abre conexão com db
+
+	selectAllProducts, err := db.Query("Select * from produtos") //Configura variável selectAllProducts para executar select de todos os produtos
+	//verifica possíveis erros
+	if err != nil {
+		panic(err.Error())
 	}
 
-	temp.ExecuteTemplate(w, "Index", produtos) //o nome deve ser o mesmo definido quando embedou o html
-	fmt.Println(produtos)
+	//Estancia a struct de produtos e sua lista
+	produto := p.Produto{}
+	produtos := []p.Produto{}
+
+	for selectAllProducts.Next() { // O next é um método que busca a próxima linha do resultado da consulta de banco
+		var id, quantidade int
+		var nome, descricao string
+		var preco float64
+
+		//verifica possíveis erros
+		err := selectAllProducts.Scan(&id, &nome, &descricao, &preco, &quantidade)
+		if err != nil {
+			panic(err.Error())
+		}
+
+		//Atribui os resultados da linha em questão às variáveis da struct
+		produto.Nome = nome
+		produto.Descricao = descricao
+		produto.Preco = preco
+		produto.Quantidade = quantidade
+
+		//Apensa na lista de produtos
+		produtos = append(produtos, produto)
+
+	}
+
+	temp.ExecuteTemplate(w, "Index", produtos) //o nome deve ser o mesmo definido quando embedou o html, produtos são os dados que serão manipulados no html
+	defer db.Close()                           //Fecha conexão com db
 }
